@@ -1,31 +1,48 @@
 const express = require('express');
 const app = express();
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const environment = process.env.NODE_ENV || 'development';
+const configuration = require('./knexfile')[environment];
+const database = require('knex')(configuration);
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
-app.locals.ideas = [];
+app.use(cors());
 
 app.use(express.static('public'));
 
 if (!module.parent) {
-  app.listen(3000, () => {
-    console.log('Node Ideas is live! (http://localhost:3000)');
+  app.listen(3001, () => {
+    console.log('Node Ideas is live! (http://localhost:3001)');
   });
 }
 
 app.get('/', (request, response) => {
-  response.send({ ideas: app.locals.ideas });
-});
+  database('ideas').select()
+          .then(function(ideas) {
+            response.status(200).json(ideas);
+          })
+          .catch(function(error) {
+            console.error('somethings wrong with db')
+          });
+})
 
+app.post('/', (request, response) => {
+  const title = request.body.idea.title;
+  const body = request.body.idea.body;
 
-app.post('/ideas', (request, response) => {
-  const idea = request.body.idea;
-
-  idea.id = idea.id || Date.now();
-  app.locals.ideas.push(idea);
-
-  response.status(201).send({ idea: idea });
+  const idea = { title, body };
+  database('ideas').insert(idea)
+  .then(function() {
+    database('ideas').select()
+            .then(function(ideas) {
+              response.status(200).json(ideas);
+            })
+            .catch(function(error) {
+              console.error('somethings wrong with db')
+            });
+  })
 });
 
 app.put('/ideas/:id', (request, response) => {
